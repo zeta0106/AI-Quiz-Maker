@@ -1,0 +1,1368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Quiz Marker — Smart Assessment & Instant Feedback</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <style>
+    :root {
+      --navy: #1e3a5f; --navy-dark: #152a45; --navy-light: #2c4f7c;
+      --green: #28a745; --green-light: #e8f5e9;
+      --red: #dc3545; --red-light: #ffebee;
+      --orange: #ff9800; --orange-light: #fff3e0;
+      --bg: #f5f7fa; --white: #ffffff; --text: #333333;
+      --text-light: #666666; --border: #e0e0e0;
+      --shadow: 0 4px 20px rgba(0,0,0,0.08);
+      --shadow-hover: 0 8px 30px rgba(0,0,0,0.12);
+      --radius: 12px;
+      --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg); color: var(--text);
+      line-height: 1.6; min-height: 100vh; padding-bottom: 40px;
+    }
+    .container { max-width: 900px; margin: 0 auto; padding: 20px; }
+    .screen { display: none; animation: fadeIn 0.4s ease; }
+    .screen.active { display: block; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .app-header {
+      background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);
+      color: var(--white); padding: 40px 20px; text-align: center;
+      border-radius: 0 0 var(--radius) var(--radius);
+      margin-bottom: 30px; box-shadow: var(--shadow); position: relative;
+    }
+    .app-header h1 { font-size: 2.2rem; font-weight: 700; margin-bottom: 8px; letter-spacing: -0.5px; }
+    .app-header p { font-size: 1.05rem; opacity: 0.9; }
+    .home-btn {
+      position: fixed; top: 16px; left: 16px; z-index: 100;
+      background: var(--white); color: var(--navy); border: 2px solid var(--navy);
+      padding: 8px 18px; border-radius: 50px; font-weight: 700; font-size: 0.9rem;
+      cursor: pointer; box-shadow: var(--shadow); transition: var(--transition);
+      display: none; align-items: center; gap: 6px;
+    }
+    .home-btn:hover { background: var(--navy); color: var(--white); transform: translateY(-2px); }
+    .home-btn.visible { display: inline-flex; }
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(4px); z-index: 200; display: none;
+      align-items: center; justify-content: center; padding: 20px;
+      animation: fadeIn 0.2s ease;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal-box {
+      background: var(--white); border-radius: var(--radius); padding: 28px;
+      max-width: 420px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+      animation: slideUp 0.3s ease;
+    }
+    .modal-box h3 { color: var(--navy); margin-bottom: 12px; font-size: 1.25rem; }
+    .modal-box p { color: var(--text-light); margin-bottom: 20px; line-height: 1.5; }
+    .modal-actions { display: flex; gap: 12px; justify-content: flex-end; }
+    .card {
+      background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow);
+      padding: 28px; margin-bottom: 24px; transition: var(--transition); border: 1px solid var(--border);
+    }
+    .card:hover { box-shadow: var(--shadow-hover); }
+    .card h2, .card h3 { color: var(--navy); margin-bottom: 18px; font-size: 1.4rem; border-bottom: 2px solid var(--bg); padding-bottom: 10px; }
+    .card h3 { font-size: 1.2rem; }
+    .form-group { margin-bottom: 20px; }
+    label { display: block; font-weight: 600; margin-bottom: 8px; color: var(--navy); font-size: 0.95rem; }
+    input[type="text"], input[type="number"], textarea {
+      width: 100%; padding: 14px 16px; border: 2px solid var(--border);
+      border-radius: 8px; font-size: 1rem; font-family: inherit;
+      transition: var(--transition); background: var(--white); color: var(--text);
+    }
+    input[type="text"]:focus, input[type="number"]:focus, textarea:focus {
+      outline: none; border-color: var(--navy-light);
+      box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.1);
+    }
+    textarea { resize: vertical; min-height: 100px; line-height: 1.5; }
+    input[type="number"] { max-width: 120px; }
+    .char-count { text-align: right; font-size: 0.85rem; color: var(--text-light); margin-top: 6px; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 14px 28px; border: none; border-radius: 8px; font-size: 1rem;
+      font-weight: 600; cursor: pointer; transition: var(--transition);
+      font-family: inherit; text-decoration: none;
+    }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary { background: var(--navy); color: var(--white); }
+    .btn-primary:hover:not(:disabled) { background: var(--navy-dark); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(30,58,95,0.3); }
+    .btn-secondary { background: var(--white); color: var(--navy); border: 2px solid var(--navy); }
+    .btn-secondary:hover:not(:disabled) { background: var(--navy); color: var(--white); }
+    .btn-success { background: var(--green); color: var(--white); }
+    .btn-success:hover:not(:disabled) { background: #218838; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(40,167,69,0.3); }
+    .btn-danger { background: var(--red); color: var(--white); padding: 8px 14px; font-size: 0.85rem; }
+    .btn-danger:hover { background: #c82333; }
+    .btn-grey { background: #e0e0e0; color: var(--text); padding: 8px 14px; font-size: 0.85rem; }
+    .btn-grey:hover { background: #d0d0d0; }
+    .actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 10px; }
+    .pdf-section { margin-bottom: 24px; }
+    .pdf-upload-zone {
+      border: 2px dashed var(--navy-light); border-radius: var(--radius);
+      padding: 32px 24px; text-align: center; background: #f8fafc;
+      transition: var(--transition); cursor: pointer; position: relative;
+    }
+    .pdf-upload-zone:hover, .pdf-upload-zone.dragover { background: #edf2f7; border-color: var(--navy); transform: translateY(-2px); }
+    .pdf-upload-zone .icon { font-size: 2.5rem; margin-bottom: 10px; opacity: 0.7; }
+    .pdf-upload-zone p { color: var(--text-light); margin-bottom: 14px; font-size: 0.95rem; }
+    .pdf-upload-zone input[type="file"] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+    .pdf-filename { margin-top: 12px; font-weight: 600; color: var(--navy); display: none; align-items: center; justify-content: center; gap: 8px; }
+    .pdf-filename.visible { display: flex; }
+    .pdf-actions { margin-top: 14px; display: none; gap: 10px; justify-content: center; }
+    .pdf-actions.visible { display: flex; }
+    .divider { display: flex; align-items: center; text-align: center; margin: 28px 0; color: var(--text-light); font-size: 0.9rem; font-weight: 500; }
+    .divider::before, .divider::after { content: ''; flex: 1; border-bottom: 1px solid var(--border); }
+    .divider::before { margin-right: 12px; }
+    .divider::after { margin-left: 12px; }
+    .spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--navy); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; display: none; }
+    .spinner.visible { display: block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .pdf-error { color: var(--red); background: var(--red-light); padding: 10px 14px; border-radius: 8px; margin-top: 12px; font-size: 0.9rem; display: none; }
+    .pdf-error.visible { display: block; }
+    .pdf-success { color: var(--green); background: var(--green-light); padding: 10px 14px; border-radius: 8px; margin-top: 12px; font-size: 0.9rem; display: none; }
+    .pdf-success.visible { display: block; }
+    .preview-item {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      padding: 14px 16px; background: var(--bg); border-radius: 8px;
+      margin-bottom: 10px; border-left: 4px solid var(--navy); transition: var(--transition);
+    }
+    .preview-item:hover { transform: translateX(4px); background: #e8ecf1; }
+    .preview-content { flex: 1; padding-right: 12px; }
+    .preview-question { font-weight: 600; color: var(--navy); margin-bottom: 4px; line-height: 1.4; }
+    .preview-meta { font-size: 0.85rem; color: var(--text-light); }
+    .preview-marks { display: inline-block; background: var(--orange-light); color: var(--orange); padding: 2px 10px; border-radius: 20px; font-weight: 700; font-size: 0.8rem; margin-top: 6px; }
+    .empty-state { text-align: center; padding: 30px; color: var(--text-light); font-style: italic; }
+    .progress-container { margin-bottom: 24px; }
+    .progress-bar { width: 100%; height: 10px; background: #e0e0e0; border-radius: 5px; overflow: hidden; margin-bottom: 10px; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg, var(--navy) 0%, var(--navy-light) 100%); border-radius: 5px; transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1); width: 0%; }
+    .progress-text { text-align: center; font-weight: 600; color: var(--navy); font-size: 0.95rem; }
+    .question-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 8px; }
+    .question-number { display: inline-block; background: var(--navy); color: var(--white); padding: 6px 16px; border-radius: 20px; font-weight: 700; font-size: 0.95rem; }
+    .question-marks { color: var(--orange); font-weight: 700; font-size: 1rem; }
+    .question-text { font-size: 1.15rem; line-height: 1.7; color: var(--text); margin-bottom: 24px; padding: 16px; background: var(--bg); border-radius: 8px; border-left: 4px solid var(--navy-light); }
+    .answer-section { margin-top: 10px; }
+    .answer-section label { margin-bottom: 10px; }
+    #answer-input { min-height: 160px; font-size: 1.05rem; }
+    #btn-submit { margin-top: 16px; width: 100%; display: none; }
+    #btn-submit.visible { display: inline-flex; animation: slideUp 0.3s ease; }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .feedback-card { border-top: 4px solid var(--navy); }
+    .score-display { text-align: center; font-size: 2.5rem; font-weight: 800; color: var(--navy); margin: 10px 0 24px; }
+    .score-display .outof { font-size: 1.3rem; color: var(--text-light); font-weight: 600; }
+    .feedback-section { margin-bottom: 20px; padding: 16px; border-radius: 8px; }
+    .feedback-section h4 { font-size: 1rem; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+    .feedback-section.matched { background: var(--green-light); border-left: 4px solid var(--green); }
+    .feedback-section.matched h4 { color: var(--green); }
+    .feedback-section.missed { background: var(--red-light); border-left: 4px solid var(--red); }
+    .feedback-section.missed h4 { color: var(--red); }
+    .point-tag { display: inline-block; padding: 6px 14px; margin: 4px; border-radius: 20px; font-size: 0.9rem; font-weight: 500; line-height: 1.4; }
+    .point-tag.matched-tag { background: #c8e6c9; color: #1b5e20; }
+    .point-tag.missed-tag { background: #ffcdd2; color: #b71c1c; }
+    .model-answer-box { background: #fff8e1; border-left: 4px solid var(--orange); padding: 16px; border-radius: 8px; margin: 20px 0; }
+    .model-answer-box h4 { color: var(--orange); margin-bottom: 10px; font-size: 1rem; }
+    .model-answer-box p { color: var(--text); line-height: 1.7; white-space: pre-wrap; }
+    .results-summary { text-align: center; padding: 40px 28px; border-top: 5px solid var(--navy); }
+    .grade-circle { width: 100px; height: 100px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; font-weight: 800; margin: 0 auto 20px; color: var(--white); background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%); box-shadow: 0 4px 15px rgba(30,58,95,0.3); }
+    .grade-circle.grade-a { background: linear-gradient(135deg, var(--green) 0%, #2e7d32 100%); }
+    .grade-circle.grade-b { background: linear-gradient(135deg, #42a5f5 0%, #1e88e5 100%); }
+    .grade-circle.grade-c { background: linear-gradient(135deg, var(--orange) 0%, #f57c00 100%); }
+    .grade-circle.grade-d { background: linear-gradient(135deg, #ff7043 0%, #e64a19 100%); }
+    .grade-circle.grade-f { background: linear-gradient(135deg, var(--red) 0%, #c62828 100%); }
+    .total-score { font-size: 2.2rem; font-weight: 700; color: var(--navy); margin-bottom: 6px; }
+    .percentage { font-size: 1.3rem; color: var(--text-light); font-weight: 600; margin-bottom: 16px; }
+    .motivational-msg { font-size: 1.15rem; font-weight: 600; padding: 14px; border-radius: 8px; display: inline-block; max-width: 100%; }
+    .msg-excellent { background: var(--green-light); color: #1b5e20; }
+    .msg-good { background: #e3f2fd; color: #0d47a1; }
+    .msg-average { background: var(--orange-light); color: #e65100; }
+    .msg-below { background: #fbe9e7; color: #bf360c; }
+    .msg-fail { background: var(--red-light); color: #b71c1c; }
+    .breakdown-item { margin-bottom: 20px; border-left: 4px solid var(--border); padding-left: 16px; }
+    .breakdown-item.correct { border-left-color: var(--green); }
+    .breakdown-item.partial { border-left-color: var(--orange); }
+    .breakdown-item.wrong { border-left-color: var(--red); }
+    .breakdown-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px; }
+    .breakdown-q { font-weight: 700; color: var(--navy); flex: 1; }
+    .breakdown-score { font-weight: 800; padding: 4px 12px; border-radius: 20px; font-size: 0.9rem; }
+    .score-correct { background: var(--green-light); color: var(--green); }
+    .score-partial { background: var(--orange-light); color: #e65100; }
+    .score-wrong { background: var(--red-light); color: var(--red); }
+    .breakdown-answer, .breakdown-model { font-size: 0.95rem; margin-bottom: 10px; line-height: 1.6; }
+    .breakdown-label { font-weight: 700; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; color: var(--text-light); }
+    .breakdown-answer p, .breakdown-model p { background: var(--bg); padding: 10px 14px; border-radius: 6px; color: var(--text); }
+    .breakdown-keypoints { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .kp-tag { font-size: 0.8rem; padding: 3px 10px; border-radius: 12px; font-weight: 500; }
+    .kp-hit { background: #c8e6c9; color: #1b5e20; }
+    .kp-miss { background: #ffcdd2; color: #b71c1c; }
+    .history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+    .history-header h2 { color: var(--navy); font-size: 1.5rem; }
+    .history-card { background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow); padding: 22px; margin-bottom: 18px; border: 1px solid var(--border); transition: var(--transition); }
+    .history-card:hover { box-shadow: var(--shadow-hover); }
+    .history-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; flex-wrap: wrap; gap: 10px; }
+    .history-card-title { font-weight: 700; color: var(--navy); font-size: 1.1rem; flex: 1; }
+    .history-card-meta { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .history-date { font-size: 0.85rem; color: var(--text-light); }
+    .history-badge { padding: 4px 12px; border-radius: 20px; font-weight: 700; font-size: 0.8rem; color: var(--white); }
+    .badge-a { background: var(--green); } .badge-b { background: #42a5f5; } .badge-c { background: var(--orange); } .badge-d { background: #ff7043; } .badge-f { background: var(--red); }
+    .history-scoreline { font-size: 1.05rem; color: var(--text); margin-bottom: 14px; }
+    .history-scoreline strong { color: var(--navy); }
+    .history-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .history-details { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--border); display: none; animation: fadeIn 0.3s ease; }
+    .history-details.visible { display: block; }
+    .history-detail-item { margin-bottom: 16px; padding: 14px; background: var(--bg); border-radius: 8px; }
+    .history-detail-item h5 { color: var(--navy); margin-bottom: 8px; font-size: 1rem; }
+    .history-detail-item p { font-size: 0.92rem; color: var(--text); line-height: 1.5; margin-bottom: 6px; }
+    .history-detail-item .detail-label { font-weight: 700; font-size: 0.75rem; text-transform: uppercase; color: var(--text-light); letter-spacing: 0.5px; margin-bottom: 4px; }
+    @media (max-width: 640px) {
+      .app-header h1 { font-size: 1.6rem; } .app-header { padding: 28px 16px; }
+      .container { padding: 12px; } .card { padding: 20px; }
+      .score-display { font-size: 2rem; } .question-text { font-size: 1rem; }
+      .btn { width: 100%; } .actions { flex-direction: column; }
+      .preview-item { flex-direction: column; gap: 10px; }
+      .history-card-header { flex-direction: column; } .modal-actions { flex-direction: column; }
+      .modal-actions .btn { width: 100%; }
+    }
+    .hidden { display: none !important; } .text-center { text-align: center; }
+  </style>
+</head>
+<body>
+
+  <button id="home-btn" class="home-btn" title="Go Home">🏠 Home</button>
+
+  <div id="modal-overlay" class="modal-overlay">
+    <div class="modal-box">
+      <h3>⚠️ Go Back Home?</h3>
+      <p>Are you sure you want to go back to Home? Your current quiz progress will be lost.</p>
+      <div class="modal-actions">
+        <button id="modal-cancel" class="btn btn-grey">Cancel</button>
+        <button id="modal-confirm" class="btn btn-danger">Yes, Go Home</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="app-header">
+    <h1>🎓 AI Quiz Marker</h1>
+    <p>Smart Assessment &amp; Instant Feedback</p>
+  </div>
+
+  <div class="container">
+
+    <div id="setup-screen" class="screen active">
+      <div class="card pdf-section">
+        <h2>📄 Import from PDF</h2>
+        <p style="color: var(--text-light); margin-bottom: 16px;">
+          Upload a PDF containing questions and answers. We'll auto-detect them for you.
+        </p>
+        <div class="pdf-upload-zone" id="pdf-drop-zone">
+          <input type="file" id="pdf-input" accept=".pdf,application/pdf" />
+          <div class="icon">☁️</div>
+          <p><strong>Drag &amp; drop a PDF here</strong><br>or click to browse</p>
+          <button class="btn btn-secondary" style="position:relative; z-index:2; pointer-events:none;">Browse File</button>
+        </div>
+        <div class="spinner" id="pdf-spinner"></div>
+        <div class="pdf-filename" id="pdf-filename"></div>
+        <div class="pdf-actions" id="pdf-actions">
+          <button class="btn btn-danger" id="btn-clear-pdf">Clear PDF</button>
+        </div>
+        <div class="pdf-error" id="pdf-error"></div>
+        <div class="pdf-success" id="pdf-success"></div>
+      </div>
+
+      <div class="divider">— OR enter questions manually below —</div>
+
+      <div class="card">
+        <h2>🛠️ Quiz Setup</h2>
+        <p style="color: var(--text-light); margin-bottom: 20px;">
+          Add up to 20 questions with model answers. The AI marker will automatically evaluate student responses.
+        </p>
+        <div class="form-group">
+          <label for="input-question">Question</label>
+          <textarea id="input-question" placeholder="Enter here"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="input-model">Model Answer / Marking Scheme</label>
+          <textarea id="input-model" placeholder="Enter Here"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="input-marks">Total Marks</label>
+          <input type="number" id="input-marks" min="1" max="100" value="4" />
+        </div>
+        <button id="btn-add-question" class="btn btn-secondary">+ Add Another Question</button>
+      </div>
+
+      <div class="card" id="preview-card">
+        <h3>📋 Questions Preview (<span id="question-count">0</span>)</h3>
+        <div id="questions-preview">
+          <div class="empty-state">No questions added yet. Add your first question above.</div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="btn-history" class="btn btn-secondary">📚 History</button>
+        <button id="btn-start-quiz" class="btn btn-primary" disabled>Start Quiz →</button>
+      </div>
+    </div>
+
+    <div id="quiz-screen" class="screen">
+      <div class="progress-container">
+        <div class="progress-bar">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+        <div class="progress-text" id="progress-text">Question 1 of 1</div>
+      </div>
+      <div class="card question-card" id="question-card">
+        <div class="question-header">
+          <span class="question-number" id="q-number">Q1</span>
+          <span class="question-marks" id="q-marks">(4 marks)</span>
+        </div>
+        <div class="question-text" id="q-text"></div>
+        <div class="answer-section">
+          <label for="answer-input">Your Answer:</label>
+          <textarea id="answer-input" placeholder="Type your answer here..."></textarea>
+          <div class="char-count" id="char-count">0 characters</div>
+          <button id="btn-submit" class="btn btn-success">Submit Answer &amp; Next Question →</button>
+        </div>
+      </div>
+      <div class="card feedback-card" id="feedback-card" style="display:none;">
+        <h3>🤖 AI Feedback</h3>
+        <div class="score-display" id="feedback-score">
+          <span id="fb-score">0</span><span class="outof"> / <span id="fb-total">0</span></span>
+        </div>
+        <div class="feedback-section matched">
+          <h4>✅ Points You Covered</h4>
+          <div id="matched-points"></div>
+        </div>
+        <div class="feedback-section missed">
+          <h4>❌ Points You Missed</h4>
+          <div id="missed-points"></div>
+        </div>
+        <div class="model-answer-box">
+          <h4>📖 Model Answer (Reference)</h4>
+          <p id="model-answer-display"></p>
+        </div>
+        <button id="btn-next" class="btn btn-primary">Next Question →</button>
+      </div>
+    </div>
+
+    <div id="results-screen" class="screen">
+      <div class="card results-summary">
+        <h2>🏆 Quiz Results</h2>
+        <div class="grade-circle" id="grade-circle">-</div>
+        <div class="total-score" id="total-score">0/0</div>
+        <div class="percentage" id="percentage">0%</div>
+        <div class="motivational-msg" id="motivational-msg"></div>
+      </div>
+      <div id="breakdown-container"></div>
+      <div class="actions">
+        <button id="btn-retake" class="btn btn-secondary">↻ Retake Quiz</button>
+        <button id="btn-edit" class="btn btn-primary">✎ Edit Questions</button>
+      </div>
+    </div>
+
+    <div id="history-screen" class="screen">
+      <div class="card">
+        <div class="history-header">
+          <h2>📚 Quiz History</h2>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button id="btn-clear-history" class="btn btn-danger">🗑️ Clear All History</button>
+            <button id="btn-back-home" class="btn btn-primary">← Back to Home</button>
+          </div>
+        </div>
+        <div id="history-list">
+          <div class="empty-state">📭 No quiz history yet. Complete a quiz to see it here!</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    if (typeof pdfjsLib !== 'undefined') {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+
+    const STOP_WORDS = new Set([
+      'about','above','after','again','against','all','am','an','and','any','are','aren','as','at','be','because',
+      'been','before','being','below','between','both','but','by','could','did','do','does','doing','don','down',
+      'during','each','few','for','from','further','had','has','have','having','he','her','here','hers','herself',
+      'him','himself','his','how','i','if','in','into','is','isn','it','its','itself','let','me','more','most','my',
+      'myself','nor','not','of','off','on','once','only','or','other','ought','our','ours','ourselves','out','over',
+      'own','same','she','should','so','some','such','than','that','the','their','theirs','them','themselves','then',
+      'there','these','they','this','those','through','to','too','under','until','up','very','was','we','were','what',
+      'when','where','which','while','who','whom','why','with','would','you','your','yours','yourself','yourselves',
+      'will','shall','can','may','might','must','also','just','now','even','well','back','still','way','many','much',
+      'more','most','some','such','no','too','very','shouldn','couldn','wouldn','didn','doesn','hadn','hasn','haven',
+      'isn','aren','wasn','weren','won','wouldn','dont','doesnt','didnt','wasnt','werent','isnt','arent','hasnt',
+      'havent','hadnt','wouldnt','shouldnt','couldnt','cannot','wont','shant'
+    ]);
+
+    const App = {
+      questions: [],
+      currentIndex: 0,
+      answers: [],
+      scores: [],
+      feedbacks: [],
+
+      screens: {
+        setup: document.getElementById('setup-screen'),
+        quiz: document.getElementById('quiz-screen'),
+        results: document.getElementById('results-screen'),
+        history: document.getElementById('history-screen')
+      },
+
+      init() {
+        this.bindEvents();
+        this.bindPDFEvents();
+        this.bindModalEvents();
+        this.bindHistoryEvents();
+        this.renderPreview();
+        this.updateHomeButton();
+      },
+
+      bindEvents() {
+        document.getElementById('btn-add-question').addEventListener('click', () => this.addQuestion());
+        document.getElementById('btn-start-quiz').addEventListener('click', () => this.startQuiz());
+        document.getElementById('answer-input').addEventListener('input', (e) => this.handleTyping(e));
+        document.getElementById('btn-submit').addEventListener('click', () => this.submitAnswer());
+        document.getElementById('btn-next').addEventListener('click', () => this.nextQuestion());
+        document.getElementById('btn-retake').addEventListener('click', () => this.retakeQuiz());
+        document.getElementById('btn-edit').addEventListener('click', () => this.editQuestions());
+        document.getElementById('home-btn').addEventListener('click', () => this.showHomeModal());
+        document.getElementById('btn-history').addEventListener('click', () => this.showHistory());
+        document.getElementById('btn-back-home').addEventListener('click', () => this.switchScreen('setup'));
+      },
+
+      bindPDFEvents() {
+        const dropZone = document.getElementById('pdf-drop-zone');
+        const fileInput = document.getElementById('pdf-input');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        fileInput.addEventListener('change', (e) => {
+          if (e.target.files && e.target.files[0]) {
+            this.processPDF(e.target.files[0]);
+          }
+        });
+
+        dropZone.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+          dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+          e.preventDefault();
+          dropZone.classList.remove('dragover');
+          if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+            const file = e.dataTransfer.files[0];
+            if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+              fileInput.files = e.dataTransfer.files;
+              this.processPDF(file);
+            } else {
+              this.showPDFError('Please upload a valid PDF file.');
+            }
+          }
+        });
+
+        document.getElementById('btn-clear-pdf').addEventListener('click', () => this.clearPDF());
+      },
+
+      /* ============================================================
+         FIXED PDF PROCESSING — preserves line breaks properly
+         ============================================================ */
+      async processPDF(file) {
+        this.showPDFLoading(true);
+        this.hidePDFMessages();
+
+        const fnameEl = document.getElementById('pdf-filename');
+        fnameEl.textContent = `📎 ${file.name}`;
+        fnameEl.classList.add('visible');
+
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+          let fullText = '';
+
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const textContent = await page.getTextContent();
+
+            // CRITICAL FIX: Preserve line breaks using hasEOL + y-position tracking
+            let pageText = '';
+            let lastY = null;
+            const yThreshold = 3; // pixel threshold for detecting new lines
+
+            textContent.items.forEach((item, idx) => {
+              const currentY = item.transform ? item.transform[5] : null;
+
+              // Detect line break: either PDF says hasEOL, or y-position changed significantly
+              let isNewLine = false;
+              if (item.hasEOL) {
+                isNewLine = true;
+              } else if (lastY !== null && currentY !== null && Math.abs(currentY - lastY) > yThreshold) {
+                isNewLine = true;
+              }
+
+              if (isNewLine && pageText.length > 0 && !pageText.endsWith('\n')) {
+                pageText += '\n';
+              } else if (idx > 0 && pageText.length > 0 && !pageText.endsWith('\n') && !pageText.endsWith(' ')) {
+                pageText += ' ';
+              }
+
+              pageText += item.str;
+              lastY = currentY;
+            });
+
+            fullText += pageText + '\n';
+          }
+
+          // Debug: log first 2000 chars to console if needed
+          // console.log('Extracted text:', fullText.substring(0, 2000));
+
+          const parsed = this.parsePDFText(fullText);
+
+          if (parsed.length === 0) {
+            this.showPDFError('⚠️ No questions detected. Please check your PDF format or enter questions manually.');
+            document.getElementById('pdf-actions').classList.add('visible');
+          } else {
+            this.addParsedQuestions(parsed);
+            this.showPDFSuccess(`✅ ${parsed.length} question${parsed.length !== 1 ? 's' : ''} detected from PDF. You can edit them below.`);
+            document.getElementById('pdf-actions').classList.add('visible');
+          }
+        } catch (err) {
+          console.error(err);
+          this.showPDFError('⚠️ Failed to parse PDF. Please try another file or enter questions manually.');
+          document.getElementById('pdf-actions').classList.add('visible');
+        } finally {
+          this.showPDFLoading(false);
+        }
+      },
+
+      parsePDFText(text) {
+        // Normalize: collapse 3+ newlines to 2, trim
+        let normalized = text
+          .replace(/\r/g, '\n')
+          .replace(/\n{3,}/g, '\n\n')
+          .trim();
+
+        // Strategy 1: Mock exam format (##Question / ##Answer / #MODEL ANSWERS)
+        let results = this.tryMockExamParser(normalized);
+        if (results.length > 0) return results;
+
+        // Strategy 2: Explicit Q/A line-by-line
+        const lines = normalized.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        results = this.tryExplicitQAParser(lines);
+        if (results.length > 0) return results;
+
+        // Strategy 3: Labeled block format
+        results = this.tryLabelParser(normalized);
+        return results;
+      },
+
+      /**
+       * PARSER STRATEGY 1: Mock Exam Format
+       * Handles: ##Question 1(10marks) ... ##Answer 1 ... #MODEL ANSWERS
+       */
+      tryMockExamParser(text) {
+        if (!/(?:##|\*\*)?Question\s*\d+/i.test(text)) return [];
+
+        const items = [];
+
+        // Split into question section and answer section
+        let qSection = text;
+        let aSection = '';
+
+        const modelAnswersMatch = text.match(/#MODEL ANSWERS\s*/i);
+        const answer1Match = text.match(/(?:##|\*\*)?Answer\s*1\s*(?:[\.:\)]|\s|\n)/i);
+
+        let splitPos = text.length;
+        if (modelAnswersMatch && modelAnswersMatch.index < splitPos) splitPos = modelAnswersMatch.index;
+        if (answer1Match && answer1Match.index < splitPos) splitPos = answer1Match.index;
+
+        if (splitPos < text.length) {
+          qSection = text.substring(0, splitPos).trim();
+          aSection = text.substring(splitPos).trim();
+        }
+
+        // Parse questions — flexible regex that doesn't strictly require newlines
+        // Matches: ##Question 1(10marks), ##Question 1 (10 marks), Question 1:, etc.
+        const qRegex = /(?:##|\*\*)?Question\s*(\d+)(?:\s*\(?(\d+)\s*marks?\)?)?\s*[\.:\)]?\s*([\s\S]*?)(?=(?:##|\*\*)?Question\s*\d+(?:\s*\(?\d+\s*marks?\)?)?|(?:##|\*\*)?Answer\s*\d+|#MODEL ANSWERS|$)/gi;
+
+        const questions = [];
+        let m;
+        while ((m = qRegex.exec(qSection)) !== null) {
+          const num = parseInt(m[1]);
+          let marks = m[2] ? parseInt(m[2]) : null;
+          let body = m[3].trim();
+
+          // Fallback marks extraction from body
+          if (!marks) {
+            const marksMatch = body.match(/\((\d+)\s*marks?\)/i);
+            if (marksMatch) marks = parseInt(marksMatch[1]);
+          }
+
+          // Clean markdown artifacts from body
+          body = this.cleanPDFText(body);
+
+          if (body.length > 10) {
+            questions.push({ num, marks: marks || 4, body });
+          }
+        }
+
+        // Parse answers
+        const answers = [];
+        if (aSection) {
+          const aRegex = /(?:##|\*\*)?Answer\s*(\d+)(?:\s*[\.:\)])?\s*([\s\S]*?)(?=(?:##|\*\*)?Answer\s*\d+(?:\s*[\.:\)])?|(?:##|\*\*)?Question\s*\d+|#{2,}\s*\w+|$)/gi;
+          while ((m = aRegex.exec(aSection)) !== null) {
+            const num = parseInt(m[1]);
+            let body = m[2].trim();
+            body = this.cleanPDFText(body);
+            if (body.length > 5) {
+              answers.push({ num, body });
+            }
+          }
+        }
+
+        // Match by number
+        questions.forEach(q => {
+          const ans = answers.find(a => a.num === q.num);
+          items.push({
+            question: q.body,
+            modelAnswer: ans ? ans.body : '',
+            totalMarks: q.marks
+          });
+        });
+
+        return items;
+      },
+
+      tryExplicitQAParser(lines) {
+        const items = [];
+        let current = null;
+
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          const qm = line.match(/^\s*(?:Q|Question)\s*(\d+)[\.:\)]\s*(.*)/i);
+          const am = line.match(/^\s*(?:A|Answer|Ans)\s*(\d*)[\.:\)]\s*(.*)/i);
+          const mm = line.match(/[\(\[](\d+)\s*(?:marks?)?[\)\]]/i) || line.match(/(\d+)\s*marks?/i);
+
+          if (qm) {
+            if (current && current.question) {
+              items.push(this.cleanParsedItem(current));
+            }
+            current = { question: qm[2] || '', modelAnswer: '', totalMarks: mm ? parseInt(mm[1]) : 4 };
+          } else if (am && current) {
+            if (current.modelAnswer) {
+              current.modelAnswer += ' ' + line;
+            } else {
+              current.modelAnswer = am[2] || '';
+            }
+          } else if (current) {
+            if (current.modelAnswer === '') {
+              current.question += ' ' + line;
+            } else {
+              current.modelAnswer += ' ' + line;
+            }
+            if (mm && current.modelAnswer === '') {
+              current.totalMarks = parseInt(mm[1]);
+            }
+          }
+        }
+
+        if (current && current.question) {
+          items.push(this.cleanParsedItem(current));
+        }
+
+        return items;
+      },
+
+      tryLabelParser(text) {
+        const items = [];
+        const regex = /Question\s*(\d*)[\.:\)]?\s*([^\n]+(?:\n(?!\s*Answer\s*\d*[\.:\)]?)[^\n]+)*)\s*Answer\s*\d*[\.:\)]?\s*([^\n]+(?:\n(?!\s*Question\s*\d*[\.:\)]?)[^\n]+)*)/gi;
+        let m;
+        while ((m = regex.exec(text)) !== null) {
+          const block = m[0];
+          const marksMatch = block.match(/[\(\[](\d+)\s*(?:marks?)?[\)\]]/i) || block.match(/(\d+)\s*marks?/i);
+          items.push({
+            question: m[2].replace(/\n/g, ' ').trim(),
+            modelAnswer: m[3].replace(/\n/g, ' ').trim(),
+            totalMarks: marksMatch ? parseInt(marksMatch[1]) : 4
+          });
+        }
+        return items;
+      },
+
+      cleanPDFText(text) {
+        return text
+          .replace(/\*\*\*/g, '').replace(/\*\*/g, '').replace(/\*/g, '')
+          .replace(/^#{1,6}\s*/gm, '')
+          .replace(/<[^>]+>/g, '')
+          .replace(/^>\s?.*$/gm, '')
+          .replace(/^Thin\s*$/gim, '')
+          .replace(/^successfully\.\s*$/gim, '')
+          .replace(/^\|.*\|\s*$/gm, '')
+          .replace(/^---\s*$/gm, '')
+          .replace(/\n{3,}/g, '\n\n')
+          .trim();
+      },
+
+      cleanParsedItem(item) {
+        return {
+          question: this.cleanPDFText(item.question.replace(/\s+/g, ' ').trim()),
+          modelAnswer: this.cleanPDFText(item.modelAnswer.replace(/\s+/g, ' ').trim()),
+          totalMarks: item.totalMarks
+        };
+      },
+
+      addParsedQuestions(items) {
+        items.forEach(item => {
+          if (this.questions.length >= 20) return;
+          this.questions.push({
+            id: Date.now() + Math.random(),
+            question: item.question,
+            modelAnswer: item.modelAnswer,
+            totalMarks: item.totalMarks
+          });
+        });
+        this.renderPreview();
+      },
+
+      clearPDF() {
+        document.getElementById('pdf-input').value = '';
+        document.getElementById('pdf-filename').classList.remove('visible');
+        document.getElementById('pdf-actions').classList.remove('visible');
+        this.hidePDFMessages();
+      },
+
+      showPDFLoading(show) {
+        document.getElementById('pdf-spinner').classList.toggle('visible', show);
+      },
+
+      showPDFError(msg) {
+        const el = document.getElementById('pdf-error');
+        el.textContent = msg;
+        el.classList.add('visible');
+        document.getElementById('pdf-success').classList.remove('visible');
+      },
+
+      showPDFSuccess(msg) {
+        const el = document.getElementById('pdf-success');
+        el.textContent = msg;
+        el.classList.add('visible');
+        document.getElementById('pdf-error').classList.remove('visible');
+      },
+
+      hidePDFMessages() {
+        document.getElementById('pdf-error').classList.remove('visible');
+        document.getElementById('pdf-success').classList.remove('visible');
+      },
+
+      bindModalEvents() {
+        document.getElementById('modal-cancel').addEventListener('click', () => this.hideHomeModal());
+        document.getElementById('modal-confirm').addEventListener('click', () => {
+          this.hideHomeModal();
+          this.goHome();
+        });
+        document.getElementById('modal-overlay').addEventListener('click', (e) => {
+          if (e.target.id === 'modal-overlay') this.hideHomeModal();
+        });
+      },
+
+      showHomeModal() {
+        document.getElementById('modal-overlay').classList.add('active');
+      },
+
+      hideHomeModal() {
+        document.getElementById('modal-overlay').classList.remove('active');
+      },
+
+      goHome() {
+        this.currentIndex = 0;
+        this.answers = [];
+        this.scores = [];
+        this.feedbacks = [];
+        this.switchScreen('setup');
+        this.updateHomeButton();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      },
+
+      updateHomeButton() {
+        const homeBtn = document.getElementById('home-btn');
+        const activeScreen = Object.entries(this.screens).find(([_, el]) => el.classList.contains('active'));
+        if (activeScreen && activeScreen[0] !== 'setup') {
+          homeBtn.classList.add('visible');
+        } else {
+          homeBtn.classList.remove('visible');
+        }
+      },
+
+      HISTORY_KEY: 'aiQuizHistory',
+      MAX_HISTORY: 20,
+
+      bindHistoryEvents() {
+        document.getElementById('btn-clear-history').addEventListener('click', () => this.confirmClearHistory());
+      },
+
+      loadHistory() {
+        try {
+          const raw = localStorage.getItem(this.HISTORY_KEY);
+          return raw ? JSON.parse(raw) : [];
+        } catch (e) {
+          return [];
+        }
+      },
+
+      saveHistoryEntry() {
+        const history = this.loadHistory();
+        const totalMarks = this.questions.reduce((sum, q) => sum + q.totalMarks, 0);
+        const obtained = this.scores.reduce((sum, s) => sum + s, 0);
+        const percentage = totalMarks > 0 ? Math.round((obtained / totalMarks) * 100) : 0;
+        const grade = this.calculateGrade(percentage);
+
+        const quizName = this.questions[0]
+          ? (this.questions[0].question.substring(0, 40) + (this.questions[0].question.length > 40 ? '...' : ''))
+          : 'Untitled Quiz';
+
+        const entry = {
+          id: Date.now().toString(36) + Math.random().toString(36).substr(2, 5),
+          date: new Date().toISOString(),
+          quizName,
+          obtained,
+          totalMarks,
+          percentage,
+          grade,
+          questions: JSON.parse(JSON.stringify(this.questions)),
+          answers: JSON.parse(JSON.stringify(this.answers)),
+          scores: JSON.parse(JSON.stringify(this.scores)),
+          feedbacks: JSON.parse(JSON.stringify(this.feedbacks))
+        };
+
+        history.unshift(entry);
+        if (history.length > this.MAX_HISTORY) history.pop();
+
+        try {
+          localStorage.setItem(this.HISTORY_KEY, JSON.stringify(history));
+        } catch (e) {
+          console.warn('Failed to save history to localStorage', e);
+        }
+      },
+
+      calculateGrade(percentage) {
+        if (percentage >= 80) return 'A';
+        if (percentage >= 70) return 'B';
+        if (percentage >= 60) return 'C';
+        if (percentage >= 50) return 'D';
+        return 'F';
+      },
+
+      showHistory() {
+        this.renderHistory();
+        this.switchScreen('history');
+      },
+
+      renderHistory() {
+        const history = this.loadHistory();
+        const container = document.getElementById('history-list');
+
+        if (history.length === 0) {
+          container.innerHTML = '<div class="empty-state">📭 No quiz history yet. Complete a quiz to see it here!</div>';
+          return;
+        }
+
+        container.innerHTML = history.map((item) => {
+          const dateObj = new Date(item.date);
+          const dateStr = dateObj.toLocaleDateString('en-GB', {
+            day: 'numeric', month: 'short', year: 'numeric',
+            hour: '2-digit', minute: '2-digit'
+          });
+          const badgeClass = `badge-${item.grade.toLowerCase()}`;
+
+          return `
+            <div class="history-card">
+              <div class="history-card-header">
+                <div class="history-card-title">${this.escapeHtml(item.quizName)}</div>
+                <div class="history-card-meta">
+                  <span class="history-date">${dateStr}</span>
+                  <span class="history-badge ${badgeClass}">${item.grade}</span>
+                </div>
+              </div>
+              <div class="history-scoreline">
+                <strong>${item.obtained}/${item.totalMarks}</strong> — ${item.percentage}% &nbsp;|&nbsp; ${item.questions.length} question${item.questions.length !== 1 ? 's' : ''}
+              </div>
+              <div class="history-actions">
+                <button class="btn btn-secondary" onclick="App.toggleHistoryDetail('${item.id}')">📋 View Details</button>
+                <button class="btn btn-success" onclick="App.retakeFromHistory('${item.id}')">↻ Retake This Quiz</button>
+                <button class="btn btn-danger" onclick="App.deleteHistoryItem('${item.id}')">🗑️ Delete</button>
+              </div>
+              <div class="history-details" id="history-detail-${item.id}">
+                ${this.renderHistoryDetails(item)}
+              </div>
+            </div>
+          `;
+        }).join('');
+      },
+
+      renderHistoryDetails(item) {
+        return item.questions.map((q, idx) => {
+          const score = item.scores[idx] || 0;
+          const fb = item.feedbacks[idx] || { matched: [], missed: [] };
+          const ratio = score / q.totalMarks;
+          let scoreClass = 'score-partial';
+          if (ratio >= 0.8) scoreClass = 'score-correct';
+          else if (ratio < 0.5) scoreClass = 'score-wrong';
+
+          const hitTags = (fb.matched || []).map(m => `<span class="kp-tag kp-hit">${this.escapeHtml(m.sentence || m)}</span>`).join('');
+          const missTags = (fb.missed || []).map(m => `<span class="kp-tag kp-miss">${this.escapeHtml(m.sentence || m)}</span>`).join('');
+
+          return `
+            <div class="history-detail-item">
+              <h5>Q${idx + 1}. ${this.escapeHtml(q.question)} <span class="breakdown-score ${scoreClass}" style="float:right;">${score}/${q.totalMarks}</span></h5>
+              <div class="detail-label">Your Answer</div>
+              <p>${this.escapeHtml(item.answers[idx] || '(No answer)')}</p>
+              <div class="detail-label">Model Answer</div>
+              <p>${this.escapeHtml(q.modelAnswer)}</p>
+              <div class="breakdown-keypoints" style="margin-top:8px;">
+                ${hitTags}
+                ${missTags}
+              </div>
+            </div>
+          `;
+        }).join('');
+      },
+
+      toggleHistoryDetail(id) {
+        const el = document.getElementById(`history-detail-${id}`);
+        if (el) el.classList.toggle('visible');
+      },
+
+      deleteHistoryItem(id) {
+        if (!confirm('Are you sure you want to delete this history entry?')) return;
+        let history = this.loadHistory();
+        history = history.filter(h => h.id !== id);
+        localStorage.setItem(this.HISTORY_KEY, JSON.stringify(history));
+        this.renderHistory();
+      },
+
+      confirmClearHistory() {
+        if (!confirm('⚠️ Are you sure you want to clear ALL quiz history? This cannot be undone.')) return;
+        localStorage.removeItem(this.HISTORY_KEY);
+        this.renderHistory();
+      },
+
+      retakeFromHistory(id) {
+        const history = this.loadHistory();
+        const entry = history.find(h => h.id === id);
+        if (!entry) return;
+
+        this.questions = JSON.parse(JSON.stringify(entry.questions));
+        this.renderPreview();
+
+        this.currentIndex = 0;
+        this.answers = new Array(this.questions.length).fill('');
+        this.scores = new Array(this.questions.length).fill(0);
+        this.feedbacks = new Array(this.questions.length).fill(null);
+
+        this.switchScreen('quiz');
+        this.renderQuestion();
+        this.updateHomeButton();
+      },
+
+      addQuestion() {
+        const qEl = document.getElementById('input-question');
+        const mEl = document.getElementById('input-model');
+        const marksEl = document.getElementById('input-marks');
+
+        const question = qEl.value.trim();
+        const modelAnswer = mEl.value.trim();
+        const totalMarks = parseInt(marksEl.value, 10);
+
+        if (!question) { alert('Please enter a question.'); return; }
+        if (!modelAnswer) { alert('Please enter a model answer.'); return; }
+        if (!totalMarks || totalMarks < 1) { alert('Please enter valid marks (minimum 1).'); return; }
+        if (this.questions.length >= 20) { alert('Maximum 20 questions allowed.'); return; }
+
+        this.questions.push({
+          id: Date.now() + Math.random(),
+          question,
+          modelAnswer,
+          totalMarks
+        });
+
+        qEl.value = '';
+        mEl.value = '';
+        marksEl.value = 4;
+        qEl.focus();
+
+        this.renderPreview();
+      },
+
+      removeQuestion(id) {
+        this.questions = this.questions.filter(q => q.id !== id);
+        this.renderPreview();
+      },
+
+      renderPreview() {
+        const container = document.getElementById('questions-preview');
+        const countEl = document.getElementById('question-count');
+        const startBtn = document.getElementById('btn-start-quiz');
+
+        countEl.textContent = this.questions.length;
+        startBtn.disabled = this.questions.length === 0;
+
+        if (this.questions.length === 0) {
+          container.innerHTML = '<div class="empty-state">No questions added yet. Add your first question above.</div>';
+          return;
+        }
+
+        container.innerHTML = this.questions.map((q, idx) => `
+          <div class="preview-item">
+            <div class="preview-content">
+              <div class="preview-question"><strong>Q${idx + 1}.</strong> ${this.escapeHtml(q.question.substring(0, 120))}${q.question.length > 120 ? '...' : ''}</div>
+              <div class="preview-meta">Model answer: ${q.modelAnswer.substring(0, 80)}${q.modelAnswer.length > 80 ? '...' : ''}</div>
+              <span class="preview-marks">${q.totalMarks} marks</span>
+            </div>
+            <button class="btn btn-danger" onclick="App.removeQuestion(${q.id})">Remove</button>
+          </div>
+        `).join('');
+      },
+
+      startQuiz() {
+        if (this.questions.length === 0) return;
+        this.currentIndex = 0;
+        this.answers = new Array(this.questions.length).fill('');
+        this.scores = new Array(this.questions.length).fill(0);
+        this.feedbacks = new Array(this.questions.length).fill(null);
+
+        this.switchScreen('quiz');
+        this.renderQuestion();
+        this.updateHomeButton();
+      },
+
+      renderQuestion() {
+        const q = this.questions[this.currentIndex];
+        const total = this.questions.length;
+
+        const pct = ((this.currentIndex) / total) * 100;
+        document.getElementById('progress-fill').style.width = pct + '%';
+        document.getElementById('progress-text').textContent = `Question ${this.currentIndex + 1} of ${total}`;
+
+        document.getElementById('q-number').textContent = `Q${this.currentIndex + 1}`;
+        document.getElementById('q-marks').textContent = `(${q.totalMarks} marks)`;
+        document.getElementById('q-text').textContent = q.question;
+
+        const ansInput = document.getElementById('answer-input');
+        ansInput.value = this.answers[this.currentIndex] || '';
+        ansInput.disabled = false;
+        this.handleTyping({ target: ansInput });
+
+        document.getElementById('feedback-card').style.display = 'none';
+        document.getElementById('question-card').style.display = 'block';
+
+        setTimeout(() => ansInput.focus(), 100);
+      },
+
+      handleTyping(e) {
+        const len = e.target.value.length;
+        document.getElementById('char-count').textContent = `${len} character${len !== 1 ? 's' : ''}`;
+
+        const btn = document.getElementById('btn-submit');
+        if (len >= 10) {
+          btn.classList.add('visible');
+        } else {
+          btn.classList.remove('visible');
+        }
+      },
+
+      submitAnswer() {
+        const ansInput = document.getElementById('answer-input');
+        const answer = ansInput.value.trim();
+
+        if (answer.length < 10) {
+          alert('Please write at least 10 characters before submitting.');
+          return;
+        }
+
+        this.answers[this.currentIndex] = answer;
+        ansInput.disabled = true;
+
+        const q = this.questions[this.currentIndex];
+        const result = this.calculateScore(q.modelAnswer, answer, q.totalMarks);
+
+        this.scores[this.currentIndex] = result.score;
+        this.feedbacks[this.currentIndex] = result;
+
+        this.showFeedback(result, q);
+      },
+
+      showFeedback(result, question) {
+        document.getElementById('fb-score').textContent = result.score;
+        document.getElementById('fb-total').textContent = question.totalMarks;
+
+        const matchedContainer = document.getElementById('matched-points');
+        if (result.matched.length === 0) {
+          matchedContainer.innerHTML = '<em style="color: var(--text-light);">No key points matched.</em>';
+        } else {
+          matchedContainer.innerHTML = result.matched.map(m => `
+            <span class="point-tag matched-tag">${this.escapeHtml(m.sentence)}</span>
+          `).join('');
+        }
+
+        const missedContainer = document.getElementById('missed-points');
+        if (result.missed.length === 0) {
+          missedContainer.innerHTML = '<em style="color: var(--text-light);">Great job! You covered all key points.</em>';
+        } else {
+          missedContainer.innerHTML = result.missed.map(m => `
+            <span class="point-tag missed-tag">${this.escapeHtml(m.sentence)}</span>
+          `).join('');
+        }
+
+        document.getElementById('model-answer-display').textContent = question.modelAnswer;
+
+        document.getElementById('feedback-card').style.display = 'block';
+        document.getElementById('question-card').style.display = 'none';
+
+        const nextBtn = document.getElementById('btn-next');
+        if (this.currentIndex === this.questions.length - 1) {
+          nextBtn.textContent = 'View Final Results →';
+        } else {
+          nextBtn.textContent = 'Next Question →';
+        }
+
+        document.getElementById('feedback-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      },
+
+      nextQuestion() {
+        if (this.currentIndex < this.questions.length - 1) {
+          this.currentIndex++;
+          this.renderQuestion();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else {
+          this.showResults();
+        }
+      },
+
+      extractKeyPoints(text) {
+        const sentences = text
+          .split(/[.!?]+/)
+          .map(s => s.trim())
+          .filter(s => s.length > 0);
+
+        const keyPoints = [];
+
+        sentences.forEach(sentence => {
+          const cleaned = sentence.toLowerCase().replace(/[^\w\s]/g, ' ');
+          const words = cleaned.split(/\s+/).filter(w => w.length > 0);
+
+          let significant = words.filter(w => w.length >= 4 && !STOP_WORDS.has(w));
+          if (significant.length === 0) {
+            significant = words.filter(w => w.length >= 3 && !STOP_WORDS.has(w));
+          }
+          if (significant.length === 0) {
+            significant = words.filter(w => w.length >= 3);
+          }
+
+          significant = [...new Set(significant)];
+          const keywords = significant.slice(0, 3);
+
+          if (keywords.length > 0) {
+            keyPoints.push({
+              sentence: sentence,
+              keywords: keywords
+            });
+          }
+        });
+
+        return keyPoints;
+      },
+
+      calculateScore(modelAnswer, studentAnswer, totalMarks) {
+        const keyPoints = this.extractKeyPoints(modelAnswer);
+        const studentLower = studentAnswer.toLowerCase();
+        const studentWords = studentLower.replace(/[^\w\s]/g, ' ').split(/\s+/).filter(w => w.length > 0);
+
+        if (keyPoints.length === 0) {
+          const modelWords = modelAnswer.toLowerCase()
+            .replace(/[^\w\s]/g, ' ')
+            .split(/\s+/)
+            .filter(w => w.length >= 5 && !STOP_WORDS.has(w));
+          const uniqueModelWords = [...new Set(modelWords)];
+
+          if (uniqueModelWords.length === 0) {
+            return { score: 0, matched: [], missed: [], coverage: 0 };
+          }
+
+          const matched = [];
+          const missed = [];
+
+          uniqueModelWords.forEach(word => {
+            if (studentLower.includes(word)) {
+              matched.push({ sentence: word, keywords: [word] });
+            } else {
+              missed.push({ sentence: word, keywords: [word] });
+            }
+          });
+
+          const coverage = matched.length / uniqueModelWords.length;
+          const score = Math.round(coverage * totalMarks);
+          return { score, matched, missed, coverage };
+        }
+
+        const matched = [];
+        const missed = [];
+
+        keyPoints.forEach(kp => {
+          const isMatched = kp.keywords.some(kw => {
+            if (studentLower.includes(kw)) return true;
+            if (kw.length > 5) {
+              return studentWords.some(sw => {
+                return sw.includes(kw) ||
+                       kw.includes(sw) ||
+                       (sw.length > 5 && kw.length > 5 && sw.substring(0, 5) === kw.substring(0, 5));
+              });
+            }
+            return false;
+          });
+
+          if (isMatched) {
+            matched.push(kp);
+          } else {
+            missed.push(kp);
+          }
+        });
+
+        const coverage = keyPoints.length > 0 ? matched.length / keyPoints.length : 0;
+        let score = Math.round(coverage * totalMarks);
+
+        if (score === 0 && coverage > 0.15 && studentAnswer.length > 30) {
+          score = 1;
+        }
+
+        score = Math.min(score, totalMarks);
+
+        return { score, matched, missed, coverage };
+      },
+
+      showResults() {
+        this.saveHistoryEntry();
+
+        const totalMarks = this.questions.reduce((sum, q) => sum + q.totalMarks, 0);
+        const obtained = this.scores.reduce((sum, s) => sum + s, 0);
+        const percentage = totalMarks > 0 ? Math.round((obtained / totalMarks) * 100) : 0;
+
+        let grade = 'F';
+        let gradeClass = 'grade-f';
+        let msgClass = 'msg-fail';
+        let message = 'Don\'t give up! Review the material and try again. 💪';
+
+        if (percentage >= 80) {
+          grade = 'A'; gradeClass = 'grade-a'; msgClass = 'msg-excellent';
+          message = 'Outstanding work! You\'ve mastered this material! 🌟';
+        } else if (percentage >= 70) {
+          grade = 'B'; gradeClass = 'grade-b'; msgClass = 'msg-good';
+          message = 'Great job! Keep up the excellent work! 👏';
+        } else if (percentage >= 60) {
+          grade = 'C'; gradeClass = 'grade-c'; msgClass = 'msg-average';
+          message = 'Good effort! A bit more practice and you\'ll excel. 📚';
+        } else if (percentage >= 50) {
+          grade = 'D'; gradeClass = 'grade-d'; msgClass = 'msg-below';
+          message = 'Keep practicing! Review the missed points and try again. 🔁';
+        }
+
+        document.getElementById('grade-circle').textContent = grade;
+        document.getElementById('grade-circle').className = 'grade-circle ' + gradeClass;
+        document.getElementById('total-score').textContent = `${obtained}/${totalMarks}`;
+        document.getElementById('percentage').textContent = `${percentage}%`;
+        const msgEl = document.getElementById('motivational-msg');
+        msgEl.textContent = message;
+        msgEl.className = 'motivational-msg ' + msgClass;
+
+        const breakdownContainer = document.getElementById('breakdown-container');
+        breakdownContainer.innerHTML = '<h3 style="color: var(--navy); margin-bottom: 16px;">📊 Question Breakdown</h3>';
+
+        this.questions.forEach((q, idx) => {
+          const score = this.scores[idx];
+          const fb = this.feedbacks[idx];
+          const ratio = score / q.totalMarks;
+          let itemClass = 'partial';
+          let scoreClass = 'score-partial';
+          if (ratio >= 0.8) { itemClass = 'correct'; scoreClass = 'score-correct'; }
+          else if (ratio < 0.5) { itemClass = 'wrong'; scoreClass = 'score-wrong'; }
+
+          const hitTags = fb && fb.matched ? fb.matched.map(m => `<span class="kp-tag kp-hit">${this.escapeHtml(m.sentence)}</span>`).join('') : '';
+          const missTags = fb && fb.missed ? fb.missed.map(m => `<span class="kp-tag kp-miss">${this.escapeHtml(m.sentence)}</span>`).join('') : '';
+
+          breakdownContainer.innerHTML += `
+            <div class="card breakdown-item ${itemClass}">
+              <div class="breakdown-header">
+                <span class="breakdown-q">Q${idx + 1}. ${this.escapeHtml(q.question)}</span>
+                <span class="breakdown-score ${scoreClass}">${score}/${q.totalMarks}</span>
+              </div>
+              <div class="breakdown-answer">
+                <div class="breakdown-label">Your Answer</div>
+                <p>${this.escapeHtml(this.answers[idx] || '(No answer)')}</p>
+              </div>
+              <div class="breakdown-model">
+                <div class="breakdown-label">Model Answer</div>
+                <p>${this.escapeHtml(q.modelAnswer)}</p>
+              </div>
+              <div style="margin-top: 12px;">
+                <div class="breakdown-label">Key Points Analysis</div>
+                <div class="breakdown-keypoints">
+                  ${hitTags}
+                  ${missTags}
+                </div>
+              </div>
+            </div>
+          `;
+        });
+
+        this.switchScreen('results');
+        this.updateHomeButton();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      },
+
+      retakeQuiz() {
+        this.currentIndex = 0;
+        this.answers = new Array(this.questions.length).fill('');
+        this.scores = new Array(this.questions.length).fill(0);
+        this.feedbacks = new Array(this.questions.length).fill(null);
+
+        this.switchScreen('quiz');
+        this.renderQuestion();
+        this.updateHomeButton();
+      },
+
+      editQuestions() {
+        this.switchScreen('setup');
+        this.renderPreview();
+        this.updateHomeButton();
+      },
+
+      switchScreen(name) {
+        Object.values(this.screens).forEach(el => el.classList.remove('active'));
+        this.screens[name].classList.add('active');
+        this.updateHomeButton();
+      },
+
+      escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      }
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+      App.init();
+    });
+  </script>
+</body>
+</html>
